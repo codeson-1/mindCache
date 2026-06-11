@@ -3,8 +3,6 @@ package com.zhishen.mindcache.controller;
 import com.zhishen.mindcache.dto.ApiResponse;
 import com.zhishen.mindcache.dto.ImageUploadResponse;
 import com.zhishen.mindcache.service.ImageService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,8 +23,6 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/v1/images")
 public class ImageController {
 
-    private static final Logger log = LoggerFactory.getLogger(ImageController.class);
-
     private final ImageService imageService;
 
     public ImageController(ImageService imageService) {
@@ -44,23 +40,12 @@ public class ImageController {
             @RequestParam("file") MultipartFile file) {
 
         if (file.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, "图片文件为空"));
+            throw new IllegalArgumentException("图片文件为空");
         }
-
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, "不支持的文件类型，请上传图片"));
+            throw new IllegalArgumentException("不支持的文件类型，请上传图片");
         }
-
-        try {
-            ImageUploadResponse result = imageService.upload(file);
-            return ResponseEntity.ok(ApiResponse.ok(result));
-        } catch (Exception e) {
-            log.error("Image upload failed", e);
-            return ResponseEntity.status(502)
-                    .body(ApiResponse.error(502, e.getMessage()));
-        }
+        return ResponseEntity.ok(ApiResponse.ok(imageService.upload(file)));
     }
 }

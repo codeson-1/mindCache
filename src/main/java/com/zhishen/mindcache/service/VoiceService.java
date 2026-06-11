@@ -2,6 +2,7 @@ package com.zhishen.mindcache.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhishen.mindcache.dto.CreateKnowledgeItemRequest;
+import com.zhishen.mindcache.exception.AiServiceException;
 import com.zhishen.mindcache.dto.VoiceTranscriptionResponse;
 import com.zhishen.mindcache.model.entity.KnowledgeItem;
 import com.zhishen.mindcache.model.enums.ContentType;
@@ -81,35 +82,39 @@ public class VoiceService {
      * @param audioFile 浏览器录制的音频文件（wav/mp3/m4a/ogg/webm）
      * @return 转写结果 + 已入库的 KnowledgeItem
      */
-    public VoiceTranscriptionResponse transcribe(MultipartFile audioFile) throws IOException {
-        // 1. 先读取字节（避免 transferTo 移动临时文件后 getBytes 失败）
-        byte[] audioBytes = audioFile.getBytes();
+    public VoiceTranscriptionResponse transcribe(MultipartFile audioFile) {
+        try {
+            // 1. 先读取字节（避免 transferTo 移动临时文件后 getBytes 失败）
+            byte[] audioBytes = audioFile.getBytes();
 
-        // 2. 保存音频文件到本地
-        String audioPath = saveAudio(audioFile);
+            // 2. 保存音频文件到本地
+            String audioPath = saveAudio(audioFile);
 
-        // 3. 调用 DashScope ASR 转写
-        String asrText = callAsr(audioFile, audioBytes);
-        log.info("ASR transcription done: {} chars", asrText.length());
+            // 3. 调用 DashScope ASR 转写
+            String asrText = callAsr(audioFile, audioBytes);
+            log.info("ASR transcription done: {} chars", asrText.length());
 
-        // 4. LLM 去口语化
-        String cleanedText = textCleaningService.clean(asrText);
+            // 4. LLM 去口语化
+            String cleanedText = textCleaningService.clean(asrText);
 
-        // 5. 构建 metadata（音频路径信息）
-        String metadataJson = buildMetadata(audioPath, audioFile);
+            // 5. 构建 metadata（音频路径信息）
+            String metadataJson = buildMetadata(audioPath, audioFile);
 
-        // 6. 以 AUDIO 类型入库 → 自动触发双写索引（pgvector + Lucene）
-        CreateKnowledgeItemRequest request = new CreateKnowledgeItemRequest(
-                asrText,          // rawContent：ASR 转写原文
-                cleanedText,      // cleanContent：去口语化清洗文本
-                ContentType.AUDIO,
-                SourceType.VOICE,
-                metadataJson
-        );
-        KnowledgeItem item = knowledgeItemService.create(request);
-        log.info("Voice note created: id={}, category={}", item.getId(), item.getAutoCategory());
+            // 6. 以 AUDIO 类型入库 → 自动触发双写索引（pgvector + Lucene）
+            CreateKnowledgeItemRequest request = new CreateKnowledgeItemRequest(
+                    asrText,
+                    cleanedText,
+                    ContentType.AUDIO,
+                    SourceType.VOICE,
+                    metadataJson
+            );
+            KnowledgeItem item = knowledgeItemService.create(request);
+            log.info("Voice note created: id={}, category={}", item.getId(), item.getAutoCategory());
 
-        return VoiceTranscriptionResponse.of(asrText, cleanedText, item);
+            return VoiceTranscriptionResponse.of(asrText, cleanedText, item);
+        } catch (IOException e) {
+            throw new AiServiceException("音频文件处理失败", e);
+        }
     }
 
     // ---- internal ----
@@ -177,27 +182,27 @@ public class VoiceService {
             ResponseEntity<Map> response = asrRestTemplate.postForEntity(ASR_URL, requestEntity, Map.class);
             Map<String, Object> responseBody = response.getBody();
             if (responseBody == null) {
-                throw new RuntimeException("Empty ASR response");
+                throw new AiServiceException("Empty ASR response");
             }
 
             // 解析 Chat Completions 响应：choices[0].message.content
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
             if (choices == null || choices.isEmpty()) {
-                throw new RuntimeException("ASR response missing 'choices': " + responseBody);
+                throw new AiServiceException("ASR response missing 'choices': " + responseBody);
             }
             Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
             if (message == null) {
-                throw new RuntimeException("ASR response missing 'message'");
+                throw new AiServiceException("ASR response missing 'message'");
             }
             String text = (String) message.get("content");
             if (text == null || text.isBlank()) {
-                throw new RuntimeException("ASR response 'content' is empty");
+                throw new AiServiceException("ASR response 'content' is empty");
             }
             return text;
         } catch (RestClientException e) {
             log.error("DashScope ASR API call failed", e);
-            throw new RuntimeException("语音识别服务暂不可用，请稍后重试", e);
+            throw new AiServiceException("语音识别服务暂不可用，请稍后重试", e);
         }
     }
 

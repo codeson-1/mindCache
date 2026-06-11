@@ -2,6 +2,7 @@ package com.zhishen.mindcache.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhishen.mindcache.dto.CreateKnowledgeItemRequest;
+import com.zhishen.mindcache.exception.AiServiceException;
 import com.zhishen.mindcache.dto.ImageUploadResponse;
 import com.zhishen.mindcache.model.entity.KnowledgeItem;
 import com.zhishen.mindcache.model.enums.ContentType;
@@ -61,39 +62,43 @@ public class ImageService {
      * @param imageFile 浏览器上传的图片文件（png/jpg/gif/webp）
      * @return OCR 文本 + 视觉描述 + 已入库的 KnowledgeItem
      */
-    public ImageUploadResponse upload(MultipartFile imageFile) throws IOException {
-        // 1. 保存图片到本地
-        String imagePath = saveImage(imageFile);
+    public ImageUploadResponse upload(MultipartFile imageFile) {
+        try {
+            // 1. 保存图片到本地
+            String imagePath = saveImage(imageFile);
 
-        // 2. 调用 qwen-plus 做 OCR + 视觉描述
-        Path fileOnDisk = imageDir.resolve(imagePath.substring("images/".length()));
-        ImageAnalysisService.ImageAnalysisResult analysis =
-                analysisService.analyze(fileOnDisk, imageFile.getContentType());
+            // 2. 调用 qwen-plus 做 OCR + 视觉描述
+            Path fileOnDisk = imageDir.resolve(imagePath.substring("images/".length()));
+            ImageAnalysisService.ImageAnalysisResult analysis =
+                    analysisService.analyze(fileOnDisk, imageFile.getContentType());
 
-        // 3. 融合文本：OCR 文字 + 视觉描述
-        String mergedContent = mergeContent(analysis.ocrText(), analysis.visualDescription());
-        log.info("Image analysis: ocr={} chars, desc={} chars, merged={} chars",
-                analysis.ocrText().length(), analysis.visualDescription().length(), mergedContent.length());
+            // 3. 融合文本：OCR 文字 + 视觉描述
+            String mergedContent = mergeContent(analysis.ocrText(), analysis.visualDescription());
+            log.info("Image analysis: ocr={} chars, desc={} chars, merged={} chars",
+                    analysis.ocrText().length(), analysis.visualDescription().length(), mergedContent.length());
 
-        if (mergedContent.isBlank()) {
-            throw new RuntimeException("图片分析未提取到有效内容，请换一张图片重试");
+            if (mergedContent.isBlank()) {
+                throw new AiServiceException("图片分析未提取到有效内容，请换一张图片重试");
+            }
+
+            // 4. 构建 metadata（图片路径信息）
+            String metadataJson = buildMetadata(imagePath, imageFile);
+
+            // 5. 以 IMAGE 类型入库 → 自动触发双写索引（pgvector + Lucene）
+            CreateKnowledgeItemRequest request = new CreateKnowledgeItemRequest(
+                    mergedContent,
+                    mergedContent,
+                    ContentType.IMAGE,
+                    SourceType.UPLOAD,
+                    metadataJson
+            );
+            KnowledgeItem item = knowledgeItemService.create(request);
+            log.info("Image note created: id={}", item.getId());
+
+            return ImageUploadResponse.of(analysis.ocrText(), analysis.visualDescription(), mergedContent, item);
+        } catch (IOException e) {
+            throw new AiServiceException("图片文件处理失败", e);
         }
-
-        // 4. 构建 metadata（图片路径信息）
-        String metadataJson = buildMetadata(imagePath, imageFile);
-
-        // 5. 以 IMAGE 类型入库 → 自动触发双写索引（pgvector + Lucene）
-        CreateKnowledgeItemRequest request = new CreateKnowledgeItemRequest(
-                mergedContent,      // rawContent
-                mergedContent,      // cleanContent（图片分析结果已为书面语，无需二次清洗）
-                ContentType.IMAGE,
-                SourceType.UPLOAD,
-                metadataJson
-        );
-        KnowledgeItem item = knowledgeItemService.create(request);
-        log.info("Image note created: id={}", item.getId());
-
-        return ImageUploadResponse.of(analysis.ocrText(), analysis.visualDescription(), mergedContent, item);
     }
 
     // ---- internal ----

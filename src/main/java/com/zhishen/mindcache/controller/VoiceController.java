@@ -3,8 +3,6 @@ package com.zhishen.mindcache.controller;
 import com.zhishen.mindcache.dto.ApiResponse;
 import com.zhishen.mindcache.dto.VoiceTranscriptionResponse;
 import com.zhishen.mindcache.service.VoiceService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,16 +21,14 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <h3>错误码</h3>
  * <ul>
- *   <li>400 — 未上传文件</li>
- *   <li>413 — 文件过大（>25MB，由 Spring multipart 配置拦截）</li>
- *   <li>502 — AI 服务不可用（DashScope ASR 或 LLM 清洗失败）</li>
+ *   <li>400 — 参数错误（空文件等）</li>
+ *   <li>413 — 文件过大（>25MB）</li>
+ *   <li>502 — AI 服务不可用（由 {@link GlobalExceptionHandler} 统一处理）</li>
  * </ul>
  */
 @RestController
 @RequestMapping("/api/v1/voice")
 public class VoiceController {
-
-    private static final Logger log = LoggerFactory.getLogger(VoiceController.class);
 
     private final VoiceService voiceService;
 
@@ -52,17 +48,8 @@ public class VoiceController {
             @RequestParam("file") MultipartFile file) {
 
         if (file.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, "音频文件为空，请重新录音"));
+            throw new IllegalArgumentException("音频文件为空，请重新录音");
         }
-
-        try {
-            VoiceTranscriptionResponse result = voiceService.transcribe(file);
-            return ResponseEntity.ok(ApiResponse.ok(result));
-        } catch (Exception e) {
-            log.error("Voice transcription failed", e);
-            return ResponseEntity.status(502)
-                    .body(ApiResponse.error(502, e.getMessage()));
-        }
+        return ResponseEntity.ok(ApiResponse.ok(voiceService.transcribe(file)));
     }
 }

@@ -4,6 +4,7 @@ import com.zhishen.mindcache.dto.ApiResponse;
 import com.zhishen.mindcache.dto.CreateKnowledgeItemRequest;
 import com.zhishen.mindcache.dto.KnowledgeItemResponse;
 import com.zhishen.mindcache.dto.UpdateKnowledgeItemRequest;
+import com.zhishen.mindcache.exception.ResourceNotFoundException;
 import com.zhishen.mindcache.model.entity.KnowledgeItem;
 import com.zhishen.mindcache.service.KnowledgeItemService;
 import org.springframework.data.domain.Page;
@@ -55,8 +56,7 @@ public class KnowledgeItemController {
     public ResponseEntity<ApiResponse<KnowledgeItemResponse>> create(
             @RequestBody CreateKnowledgeItemRequest request) {
         if (request.rawContent() == null || request.rawContent().isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, "原始内容不能为空"));
+            throw new IllegalArgumentException("原始内容不能为空");
         }
         KnowledgeItem item = knowledgeItemService.create(request);
         return ResponseEntity.ok(ApiResponse.ok(KnowledgeItemResponse.from(item)));
@@ -69,8 +69,7 @@ public class KnowledgeItemController {
     public ResponseEntity<ApiResponse<KnowledgeItemResponse>> getById(@PathVariable UUID id) {
         return knowledgeItemService.findById(id)
                 .map(item -> ResponseEntity.ok(ApiResponse.ok(KnowledgeItemResponse.from(item))))
-                .orElseGet(() -> ResponseEntity.status(404)
-                        .body(ApiResponse.error(404, "Knowledge item not found: " + id)));
+                .orElseThrow(() -> new ResourceNotFoundException("Knowledge item not found: " + id));
     }
 
     /**
@@ -105,13 +104,11 @@ public class KnowledgeItemController {
             @PathVariable UUID id,
             @RequestBody UpdateKnowledgeItemRequest request) {
         if (request.rawContent() != null && request.rawContent().isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, "原始内容不能为空"));
+            throw new IllegalArgumentException("原始内容不能为空");
         }
         return knowledgeItemService.update(id, request)
                 .map(item -> ResponseEntity.ok(ApiResponse.ok(KnowledgeItemResponse.from(item))))
-                .orElseGet(() -> ResponseEntity.status(404)
-                        .body(ApiResponse.error(404, "Knowledge item not found: " + id)));
+                .orElseThrow(() -> new ResourceNotFoundException("Knowledge item not found: " + id));
     }
 
     /**
@@ -119,11 +116,9 @@ public class KnowledgeItemController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
-        boolean deleted = knowledgeItemService.delete(id);
-        if (deleted) {
-            return ResponseEntity.ok(ApiResponse.ok(null));
+        if (!knowledgeItemService.delete(id)) {
+            throw new ResourceNotFoundException("Knowledge item not found: " + id);
         }
-        return ResponseEntity.status(404)
-                .body(ApiResponse.error(404, "Knowledge item not found: " + id));
+        return ResponseEntity.ok(ApiResponse.ok(null));
     }
 }

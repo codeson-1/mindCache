@@ -16,7 +16,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -32,16 +31,13 @@ import java.util.List;
 public class KeywordIndexService {
 
     private final IndexWriter indexWriter;
-    private final ByteBuffersDirectory directory;
     private final SmartChineseAnalyzer analyzer;
 
     /**
-     * 构造器注入：IndexWriter + Directory + Analyzer 均由 KeywordIndexConfig 提供。
+     * 构造器注入：IndexWriter + Analyzer 均由 KeywordIndexConfig 提供。
      */
-    public KeywordIndexService(IndexWriter indexWriter, ByteBuffersDirectory directory,
-                               SmartChineseAnalyzer analyzer) {
+    public KeywordIndexService(IndexWriter indexWriter, SmartChineseAnalyzer analyzer) {
         this.indexWriter = indexWriter;
-        this.directory = directory;
         this.analyzer = analyzer;
     }
 
