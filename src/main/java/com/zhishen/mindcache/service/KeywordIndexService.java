@@ -133,9 +133,6 @@ public class KeywordIndexService {
     }
 
     /**
-     * BM25 搜索返回的结果条目。
-     */
-    /**
      * BM25 搜索结果。
      *
      * @param itemId 知识条目 ID

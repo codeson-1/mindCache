@@ -47,3 +47,7 @@ spring:
 
 server:
   port: 8080
+
+# 自定义业务配置
+mindcache:
+  upload-dir: ./uploads               # 文件存储根目录（音频/图片），相对于项目根目录

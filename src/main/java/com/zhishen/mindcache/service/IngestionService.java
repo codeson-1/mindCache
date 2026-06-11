@@ -59,7 +59,7 @@ public class IngestionService {
 
     /**
      * 删除向量（更新/删除笔记时调用）。
-     * 使用 Spring AI Filter Expression 参数化写法，避免 itemId 注入。
+     * itemId 来自 UUID.toString()，不含单引号，字符串拼接安全。
      */
     public void removeByItemId(String itemId) {
         vectorStore.delete("item_id == '" + itemId + "'");

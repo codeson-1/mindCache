@@ -20,7 +20,7 @@ public class KeywordIndexConfig {
 
     /**
      * Lucene 内存索引目录。
-     * <p>ByteBuffersDirectory：纯堆内存，零磁盘 IO，重启丢失（通过 @PostConstruct 从 DB 重建）。
+     * <p>ByteBuffersDirectory：纯堆内存，零磁盘 IO，重启丢失（启动时由 {@link IndexInitializer} 从 DB 重建）。
      * destroyMethod="close" 确保应用关闭时释放内存。
      */
     @Bean(destroyMethod = "close")

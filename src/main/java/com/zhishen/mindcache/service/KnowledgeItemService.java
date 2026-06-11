@@ -28,7 +28,7 @@ import java.util.UUID;
  *
  * <h3>容错策略</h3>
  * 索引写入失败仅记 WARN 日志，不抛异常，保证主流程（JPA 写入）不中断。
- * 失败的索引会在下次查询时通过 @PostConstruct 全量重建补回。
+ * 失败的索引在下次应用重启时由 {@link IndexInitializer} 全量重建补回。
  */
 @Service
 @Transactional

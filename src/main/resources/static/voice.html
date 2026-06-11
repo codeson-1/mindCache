@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>语音录入 — MindCache</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🎙️ 语音录入</h1>
+        <p>录音后自动转写、清洗、入库</p>
+    </header>
+
+    <!-- 录音区域 -->
+    <div class="card" style="text-align: center;">
+        <button id="btnRecord" class="btn btn-primary btn-record" title="开始录音">
+            <span id="iconRecord">🎙️</span>
+        </button>
+        <div class="recording-status">
+            <span id="statusText">点击按钮开始录音</span>
+            <br>
+            <span id="timer" class="timer" style="display:none;">00:00</span>
+        </div>
+        <div style="margin-top: 12px; font-size: 0.75rem; color: #9ca3af;">
+            支持 WAV/MP3/M4A/OGG/WebM &bull; 最长 5 分钟
+        </div>
+    </div>
+
+    <!-- 加载动画 -->
+    <div id="spinner" class="spinner">
+        <p style="margin-top: 12px; font-size: 0.875rem; color: var(--text-secondary);">
+            正在转写中，请稍候...
+        </p>
+    </div>
+
+    <!-- 结果 -->
+    <div id="resultSection" class="result-section">
+        <!-- ASR 原始转写 -->
+        <div class="card">
+            <div class="result-label">📝 ASR 转写</div>
+            <div id="asrText" class="result-text"></div>
+        </div>
+
+        <!-- 清洗后 -->
+        <div class="card">
+            <div class="result-label">✨ 清洗后文本</div>
+            <div id="cleanedText" class="result-text"></div>
+        </div>
+
+        <!-- 笔记信息 -->
+        <div class="card note-card">
+            <div>
+                <div class="result-label">📌 笔记已入库</div>
+                <div class="meta">自动双写索引（pgvector + Lucene BM25）</div>
+            </div>
+            <span id="noteId" class="id-badge"></span>
+        </div>
+
+        <!-- 操作按钮 -->
+        <button id="btnRetry" class="btn btn-outline" style="margin-bottom: 24px;">
+            🔄 再录一条
+        </button>
+    </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+/**
+ * 语音录入页面逻辑 — MediaRecorder API。
+ */
+(function () {
+
+    // ---- DOM 元素 ----
+    const $ = (sel) => document.querySelector(sel);
+    const btnRecord  = $("#btnRecord");
+    const iconRecord = $("#iconRecord");
+    const statusText = $("#statusText");
+    const timerEl    = $("#timer");
+    const spinnerEl  = $("#spinner");
+    const resultSec  = $("#resultSection");
+    const asrTextEl  = $("#asrText");
+    const cleanedEl  = $("#cleanedText");
+    const noteIdEl   = $("#noteId");
+    const btnRetry   = $("#btnRetry");
+
+    // ---- 录音状态 ----
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recording = false;
+    let timerInterval = null;
+    let seconds = 0;
+
+    /** 最大录音时长 300 秒 (5 分钟) */
+    const MAX_DURATION = 300;
+
+    // ============================================================
+    //  录音控制
+    // ============================================================
+
+    btnRecord.addEventListener("click", () => {
+        if (recording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    });
+
+    async function startRecording() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioChunks = [];
+            seconds = 0;
+
+            // 选择最佳支持的音频格式
+            const mimeType = chooseMimeType();
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                stream.getTracks().forEach(t => t.stop());
+                clearInterval(timerInterval);
+                // 自动上传
+                handleUpload();
+            };
+
+            mediaRecorder.start(100); // 每 100ms 收集一次
+            recording = true;
+
+            // UI 更新
+            btnRecord.classList.add("recording");
+            iconRecord.textContent = "⏹️";
+            statusText.textContent = "录音中...";
+            timerEl.style.display = "inline";
+            updateTimer();
+            timerInterval = setInterval(updateTimer, 1000);
+
+            // 最大时长自动停止
+            setTimeout(() => {
+                if (recording) stopRecording();
+            }, MAX_DURATION * 1000);
+
+        } catch (err) {
+            MindCache.showToast("无法访问麦克风：" + err.message, true);
+        }
+    }
+
+    function stopRecording() {
+        if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+        mediaRecorder.stop();
+        recording = false;
+
+        btnRecord.classList.remove("recording");
+        btnRecord.disabled = true;
+        iconRecord.textContent = "🎙️";
+        statusText.textContent = "上传中...";
+        timerEl.style.display = "none";
+    }
+
+    function chooseMimeType() {
+        const types = [
+            "audio/webm;codecs=opus",
+            "audio/webm",
+            "audio/mp4",
+            "audio/ogg;codecs=opus",
+            "audio/wav"
+        ];
+        for (const t of types) {
+            if (MediaRecorder.isTypeSupported(t)) return t;
+        }
+        return "audio/webm"; // 兜底
+    }
+
+    function updateTimer() {
+        seconds++;
+        const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const s = String(seconds % 60).padStart(2, "0");
+        timerEl.textContent = m + ":" + s;
+    }
+
+    // ============================================================
+    //  上传 + 展示
+    // ============================================================
+
+    async function handleUpload() {
+        resultSec.classList.remove("visible");
+        spinnerEl.classList.add("visible");
+
+        const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+        const ext = mediaRecorder.mimeType.split("/")[1].split(";")[0] || "webm";
+        const file = new File([blob], "recording." + ext, { type: mediaRecorder.mimeType });
+
+        try {
+            const data = await MindCache.uploadFile("/voice/transcribe", file);
+
+            // 展示结果
+            asrTextEl.textContent = data.asrText;
+            cleanedEl.textContent = data.cleanedText;
+            noteIdEl.textContent = data.knowledgeItem.id;
+
+            spinnerEl.classList.remove("visible");
+            resultSec.classList.add("visible");
+            statusText.textContent = "✅ 转写完成，笔记已入库";
+
+        } catch (err) {
+            spinnerEl.classList.remove("visible");
+            statusText.textContent = "❌ 转写失败，请重试";
+        } finally {
+            btnRecord.disabled = false;
+            audioChunks = [];
+        }
+    }
+
+    // ============================================================
+    //  重新录音
+    // ============================================================
+
+    btnRetry.addEventListener("click", () => {
+        resultSec.classList.remove("visible");
+        asrTextEl.textContent = "";
+        cleanedEl.textContent = "";
+        statusText.textContent = "点击按钮开始录音";
+        btnRecord.disabled = false;
+    });
+
+})();
+</script>
+
+</body>
+</html>

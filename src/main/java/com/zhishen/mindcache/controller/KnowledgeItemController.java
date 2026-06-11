@@ -54,6 +54,10 @@ public class KnowledgeItemController {
     @PostMapping
     public ResponseEntity<ApiResponse<KnowledgeItemResponse>> create(
             @RequestBody CreateKnowledgeItemRequest request) {
+        if (request.rawContent() == null || request.rawContent().isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(400, "原始内容不能为空"));
+        }
         KnowledgeItem item = knowledgeItemService.create(request);
         return ResponseEntity.ok(ApiResponse.ok(KnowledgeItemResponse.from(item)));
     }
@@ -100,6 +104,10 @@ public class KnowledgeItemController {
     public ResponseEntity<ApiResponse<KnowledgeItemResponse>> update(
             @PathVariable UUID id,
             @RequestBody UpdateKnowledgeItemRequest request) {
+        if (request.rawContent() != null && request.rawContent().isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(400, "原始内容不能为空"));
+        }
         return knowledgeItemService.update(id, request)
                 .map(item -> ResponseEntity.ok(ApiResponse.ok(KnowledgeItemResponse.from(item))))
                 .orElseGet(() -> ResponseEntity.status(404)

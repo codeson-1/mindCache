@@ -34,3 +34,6 @@ application-local.yml
 
 ### VS Code ###
 .vscode/
+
+### Uploaded files ###
+uploads/
