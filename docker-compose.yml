@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  pgvector:
+    image: pgvector/pgvector:0.8.0-pg17
+    container_name: mindcache-pgvector
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: mindcache
+      POSTGRES_USER: vault
+      POSTGRES_PASSWORD: vault_pass_2024
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vault -d mindcache"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgvector_data:
