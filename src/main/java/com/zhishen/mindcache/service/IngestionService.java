@@ -28,15 +28,7 @@ public class IngestionService {
      * 单条入库：KnowledgeItem → Document → VectorStore.add
      */
     public void ingest(KnowledgeItem item) {
-        Document doc = new Document(
-                item.getCleanContent(),
-                Map.of(
-                        "item_id", item.getId().toString(),
-                        "content_type", item.getContentType().name(),
-                        "category", item.getAutoCategory() != null ? item.getAutoCategory() : ""
-                )
-        );
-        vectorStore.add(List.of(doc));
+        vectorStore.add(List.of(toDocument(item)));
     }
 
     /**
@@ -44,14 +36,7 @@ public class IngestionService {
      */
     public int ingestBatch(List<KnowledgeItem> items) {
         List<Document> docs = items.stream()
-                .map(item -> new Document(
-                        item.getCleanContent(),
-                        Map.of(
-                                "item_id", item.getId().toString(),
-                                "content_type", item.getContentType().name(),
-                                "category", item.getAutoCategory() != null ? item.getAutoCategory() : ""
-                        )
-                ))
+                .map(this::toDocument)
                 .toList();
         vectorStore.add(docs);
         return docs.size();
@@ -63,5 +48,31 @@ public class IngestionService {
      */
     public void removeByItemId(String itemId) {
         vectorStore.delete("item_id == '" + itemId + "'");
+    }
+
+    /**
+     * KnowledgeItem → Spring AI Document，metadata 携带 item_id / content_type / category。
+     * <p>与 {@code KeywordIndexService.toDoc()} 对称设计。
+     */
+    private Document toDocument(KnowledgeItem item) {
+        return new Document(
+                item.getCleanContent(),
+                Map.of(
+                        "item_id", item.getId().toString(),
+                        "content_type", item.getContentType().name(),
+                        "category", resolveCategory(item)
+                )
+        );
+    }
+
+    /**
+     * 有效分类：用户修正优先，AI 自动分类兜底。
+     * <p>与 {@code KeywordIndexService.toDoc()} 中的 category 取值逻辑一致。
+     */
+    private String resolveCategory(KnowledgeItem item) {
+        if (item.getUserCategory() != null && !item.getUserCategory().isBlank()) {
+            return item.getUserCategory();
+        }
+        return item.getAutoCategory() != null ? item.getAutoCategory() : "";
     }
 }
