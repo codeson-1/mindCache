@@ -23,6 +23,13 @@ public interface ItemTagRepository extends JpaRepository<ItemTag, ItemTagId> {
     List<ItemTag> findByItemId(UUID itemId);
 
     /**
+     * 批量查询：按知识条目 ID 集合查所有关联标签。
+     *
+     * @param itemIds 知识条目 UUID 集合
+     */
+    List<ItemTag> findByItemIdIn(List<UUID> itemIds);
+
+    /**
      * 按知识条目 ID 删除所有关联标签。
      * 用于更新笔记时先删后建。
      *

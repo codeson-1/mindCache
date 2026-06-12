@@ -74,7 +74,7 @@ public class KeywordIndexService {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         QueryParser parser = new QueryParser("content", analyzer);
-        Query query = parser.parse(queryText);
+        Query query = parser.parse(QueryParser.escape(queryText));
         TopDocs topDocs = searcher.search(query, topK);
 
         List<ScoredItemId> results = new ArrayList<>();

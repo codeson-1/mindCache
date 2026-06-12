@@ -1,0 +1,166 @@
+{
+  "description": "第5周检索评测数据集 — 20条预设自然语言query，支撑消融实验和α/β/γ调参。",
+  "version": "1.0",
+  "createdAt": "2025-06-12",
+  "queryCategories": {
+    "keyword_exact": "关键词精确型 — 含具体术语，期望BM25贡献高",
+    "semantic_fuzzy": "语义模糊型 — 无精确关键词，期望向量语义贡献高",
+    "time_sensitive": "时间敏感型 — 含时间限定词，期望时间衰减起正向作用"
+  },
+  "queries": [
+    {
+      "id": "Q01",
+      "type": "keyword_exact",
+      "query": "Spring Cloud Gateway 路由配置",
+      "expectedCategory": "TECH",
+      "notes": "精确技术术语，BM25应贡献主要分数"
+    },
+    {
+      "id": "Q02",
+      "type": "keyword_exact",
+      "query": "Docker Compose 部署 PostgreSQL",
+      "expectedCategory": "TECH",
+      "notes": "两个精确技术关键词组合"
+    },
+    {
+      "id": "Q03",
+      "type": "keyword_exact",
+      "query": "Redis 缓存穿透解决方案",
+      "expectedCategory": "TECH",
+      "notes": "精确技术问题描述"
+    },
+    {
+      "id": "Q04",
+      "type": "keyword_exact",
+      "query": "Java 虚拟线程 性能对比",
+      "expectedCategory": "TECH",
+      "notes": "精确技术术语组合"
+    },
+    {
+      "id": "Q05",
+      "type": "keyword_exact",
+      "query": "pgvector HNSW 索引参数调优",
+      "expectedCategory": "TECH",
+      "notes": "高精度领域术语"
+    },
+    {
+      "id": "Q06",
+      "type": "semantic_fuzzy",
+      "query": "上次记的那个关于微服务的内容",
+      "expectedCategory": "TECH",
+      "notes": "口语化模糊搜索，无精确关键词"
+    },
+    {
+      "id": "Q07",
+      "type": "semantic_fuzzy",
+      "query": "有什么提高工作效率的方法",
+      "expectedCategory": "WORK",
+      "notes": "泛化语义搜索"
+    },
+    {
+      "id": "Q08",
+      "type": "semantic_fuzzy",
+      "query": "最近学了什么新东西",
+      "expectedCategory": null,
+      "notes": "极度口语化，测试语义泛化能力"
+    },
+    {
+      "id": "Q09",
+      "type": "semantic_fuzzy",
+      "query": "关于数据库优化的一些笔记",
+      "expectedCategory": "TECH",
+      "notes": "偏口语的技术话题"
+    },
+    {
+      "id": "Q10",
+      "type": "semantic_fuzzy",
+      "query": "那个讲API设计的文章",
+      "expectedCategory": "TECH",
+      "notes": "含模糊指代词'那个'"
+    },
+    {
+      "id": "Q11",
+      "type": "semantic_fuzzy",
+      "query": "机器学习入门该看什么",
+      "expectedCategory": "TECH",
+      "notes": "问题式搜索"
+    },
+    {
+      "id": "Q12",
+      "type": "semantic_fuzzy",
+      "query": "好用的工具推荐",
+      "expectedCategory": null,
+      "notes": "宽泛话题搜索"
+    },
+    {
+      "id": "Q13",
+      "type": "semantic_fuzzy",
+      "query": "日常生活记录和感悟",
+      "expectedCategory": "LIFE",
+      "notes": "生活类语义"
+    },
+    {
+      "id": "Q14",
+      "type": "semantic_fuzzy",
+      "query": "有哪些值得读的书",
+      "expectedCategory": "READING",
+      "notes": "阅读类语义"
+    },
+    {
+      "id": "Q15",
+      "type": "semantic_fuzzy",
+      "query": "灵感突然想到的点子",
+      "expectedCategory": "IDEA",
+      "notes": "灵感类语义"
+    },
+    {
+      "id": "Q16",
+      "type": "time_sensitive",
+      "query": "最近一周记的关于Docker的内容",
+      "expectedCategory": "TECH",
+      "notes": "含时间限定词'最近一周'"
+    },
+    {
+      "id": "Q17",
+      "type": "time_sensitive",
+      "query": "今天学到的知识点",
+      "expectedCategory": null,
+      "notes": "强时间敏感（今天）"
+    },
+    {
+      "id": "Q18",
+      "type": "time_sensitive",
+      "query": "上个月记录的架构设计思路",
+      "expectedCategory": "TECH",
+      "notes": "含时间限定词'上个月'"
+    },
+    {
+      "id": "Q19",
+      "type": "time_sensitive",
+      "query": "最近关于AI工具的笔记",
+      "expectedCategory": "TECH",
+      "notes": "含时间限定词'最近'+精确话题"
+    },
+    {
+      "id": "Q20",
+      "type": "time_sensitive",
+      "query": "昨天开会记的重点",
+      "expectedCategory": "WORK",
+      "notes": "强时间限定（昨天）"
+    }
+  ],
+  "metrics": {
+    "primary": "Top-5 命中率 = 相关 item 出现在前 5 结果中的 query 数 / 总 query 数",
+    "secondary": ["MRR (Mean Reciprocal Rank)", "NDCG@5"]
+  },
+  "ablationPlan": {
+    "description": "消融实验：分别关闭一路召回，验证每一路的独立贡献",
+    "experiments": [
+      { "name": "仅 pgvector 语义检索", "config": "alpha=1.0, beta=0.0, gamma=0.0", "expectedTop5Rate": "~72%" },
+      { "name": "仅 Lucene BM25 关键词", "config": "alpha=0.0, beta=1.0, gamma=0.0", "expectedTop5Rate": "~68%" },
+      { "name": "仅时间衰减", "config": "alpha=0.0, beta=0.0, gamma=1.0", "expectedTop5Rate": "按时间倒序" },
+      { "name": "双路融合（无时间衰减）", "config": "alpha=0.6, beta=0.4, gamma=0.0", "expectedTop5Rate": "~82%" },
+      { "name": "三路融合（推荐基线）", "config": "alpha=0.5, beta=0.3, gamma=0.2", "expectedTop5Rate": "~85%" }
+    ]
+  }
+}

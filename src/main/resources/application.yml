@@ -51,3 +51,11 @@ server:
 # 自定义业务配置
 mindcache:
   upload-dir: ./uploads               # 文件存储根目录（音频/图片），相对于项目根目录
+
+  # 多路融合检索参数（第5周）
+  search:
+    alpha: 0.5                        # 向量语义权重
+    beta: 0.3                         # BM25 关键词权重
+    gamma: 0.2                        # 时间衰减权重
+    time-decay-lambda: 0.01           # 时间衰减系数（每天衰减率，0.01 ≈ 100天后权重降至0.37）
+    default-top-k: 20                 # 默认返回条数

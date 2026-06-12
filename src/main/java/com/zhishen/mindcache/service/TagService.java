@@ -11,8 +11,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 标签管理服务。
@@ -119,6 +122,25 @@ public class TagService {
         return itemTagRepository.findByItemId(itemId).stream()
                 .map(it -> it.getTag().getName())
                 .toList();
+    }
+
+    /**
+     * 批量读取标签名（避免 N+1 查询）。
+     *
+     * @param itemIds 知识条目 UUID 集合
+     * @return itemId → 标签名列表
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, List<String>> getItemTagNames(Collection<UUID> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> idList = List.copyOf(itemIds);
+        return itemTagRepository.findByItemIdIn(idList).stream()
+                .collect(Collectors.groupingBy(
+                        it -> it.getItem().getId(),
+                        Collectors.mapping(it -> it.getTag().getName(), Collectors.toList())
+                ));
     }
 
     /**
