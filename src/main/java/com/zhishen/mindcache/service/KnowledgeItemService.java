@@ -160,6 +160,15 @@ public class KnowledgeItemService {
         feedback.setCorrectedCategory(correctedCategory);
         feedback.setOriginalTags(toJsonArray(originalTags));
         feedback.setCorrectedTags(toJsonArray(correctedTags));
+
+        // 将笔记前100字写入 feedback_text，供 few-shot 示例使用
+        String content = item.getCleanContent();
+        if (content != null && !content.isBlank()) {
+            feedback.setFeedbackText(content.length() > 100
+                    ? content.substring(0, 100) + "..."
+                    : content);
+        }
+
         feedbackRepo.save(feedback);
 
         return item;

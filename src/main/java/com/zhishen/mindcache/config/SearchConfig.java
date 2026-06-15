@@ -11,11 +11,14 @@ import org.springframework.context.annotation.Configuration;
  *   fusedScore = alpha × vectorSimilarity + beta × bm25Normalized + gamma × timeDecay
  * </pre>
  *
- * <h3>调参指南（第5周第7天评测）</h3>
+ * <h3>调参结论（第7周评测）</h3>
  * <ul>
- *   <li>提高 alpha → 语义泛化优先</li>
- *   <li>提高 beta  → 关键词精确匹配优先</li>
- *   <li>提高 gamma → 新鲜度优先</li>
+ *   <li>109 条真实碎片，20 条 query 交叉验证</li>
+ *   <li>稀疏结果集（1-5 条/query）下，权重组合对排位无显著影响</li>
+ *   <li>向量和 BM25 总是一致指向 #1 最佳匹配</li>
+ *   <li>保持 α=0.5（向量主信号，体现语义理解差异化）</li>
+ *   <li>β=0.3 提供关键词精确匹配，γ=0.2 引入时间新鲜度</li>
+ *   <li>数据量增长到 1000+ 后需重新评测</li>
  * </ul>
  */
 @Configuration
