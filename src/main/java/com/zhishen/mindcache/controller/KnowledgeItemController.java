@@ -3,10 +3,12 @@ package com.zhishen.mindcache.controller;
 import com.zhishen.mindcache.dto.ApiResponse;
 import com.zhishen.mindcache.dto.CreateKnowledgeItemRequest;
 import com.zhishen.mindcache.dto.KnowledgeItemResponse;
+import com.zhishen.mindcache.dto.SearchResultItem;
 import com.zhishen.mindcache.dto.UpdateKnowledgeItemRequest;
 import com.zhishen.mindcache.exception.ResourceNotFoundException;
 import com.zhishen.mindcache.model.entity.KnowledgeItem;
 import com.zhishen.mindcache.service.KnowledgeItemService;
+import com.zhishen.mindcache.service.SearchService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -31,6 +33,7 @@ import java.util.UUID;
  *   <tr><td>POST   </td><td>/api/v1/knowledge-items</td><td>统一录入（body.contentType 区分 TEXT/AUDIO/IMAGE）</td></tr>
  *   <tr><td>GET    </td><td>/api/v1/knowledge-items/{id}</td><td>详情</td></tr>
  *   <tr><td>GET    </td><td>/api/v1/knowledge-items</td><td>分页列表（?page=&amp;size=&amp;category=）</td></tr>
+ *   <tr><td>GET    </td><td>/api/v1/knowledge-items/{id}/related</td><td>相关笔记推荐（?topK=5）</td></tr>
  *   <tr><td>PUT    </td><td>/api/v1/knowledge-items/{id}</td><td>更新（触发 reindex + re-ingest）</td></tr>
  *   <tr><td>DELETE </td><td>/api/v1/knowledge-items/{id}</td><td>删除（双索引同步删除）</td></tr>
  * </table>
@@ -40,12 +43,15 @@ import java.util.UUID;
 public class KnowledgeItemController {
 
     private final KnowledgeItemService knowledgeItemService;
+    private final SearchService searchService;
 
     /**
      * 构造器注入。
      */
-    public KnowledgeItemController(KnowledgeItemService knowledgeItemService) {
+    public KnowledgeItemController(KnowledgeItemService knowledgeItemService,
+                                    SearchService searchService) {
         this.knowledgeItemService = knowledgeItemService;
+        this.searchService = searchService;
     }
 
     /**
@@ -92,6 +98,22 @@ public class KnowledgeItemController {
                 "totalElements", pageResult.getTotalElements(),
                 "page", pageResult.getNumber(),
                 "size", pageResult.getSize()
+        );
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
+    /**
+     * 相关笔记推荐：基于向量语义相似度，排除自身。
+     */
+    @GetMapping("/{id}/related")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getRelated(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "5") int topK) {
+        List<SearchResultItem> related = searchService.findRelated(id, topK);
+        Map<String, Object> data = Map.of(
+                "itemId", id,
+                "related", related,
+                "count", related.size()
         );
         return ResponseEntity.ok(ApiResponse.ok(data));
     }

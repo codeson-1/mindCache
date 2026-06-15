@@ -5,6 +5,7 @@ import com.zhishen.mindcache.dto.KnowledgeItemResponse;
 import com.zhishen.mindcache.dto.SearchRequest;
 import com.zhishen.mindcache.dto.SearchResultItem;
 import com.zhishen.mindcache.model.entity.KnowledgeItem;
+import com.zhishen.mindcache.exception.ResourceNotFoundException;
 import com.zhishen.mindcache.repository.KnowledgeItemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -168,8 +169,16 @@ public class SearchService {
             ));
         }
 
-        // ---- 按融合评分降序排序，取 topK ----
+        // ---- 按融合评分降序排序，相对分差截断，取 topK ----
         results.sort(Comparator.comparingDouble(SearchResultItem::fusedScore).reversed());
+
+        // 相对分差截断：fusedScore < top1 × factor 的视为弱相关，予以过滤
+        if (!results.isEmpty()) {
+            double cutoff = results.get(0).fusedScore() * config.getRelativeCutoffFactor();
+            results = results.stream()
+                    .filter(r -> r.fusedScore() >= cutoff)
+                    .collect(Collectors.toList());
+        }
 
         List<SearchResultItem> topResults = results.stream()
                 .limit(topK)
@@ -180,6 +189,68 @@ public class SearchService {
                 config.getAlpha(), config.getBeta(), config.getGamma());
 
         return topResults;
+    }
+
+    /**
+     * 相关笔记推荐：用目标笔记的 cleanContent 做向量语义搜索，
+     * 多取一条用于排除自身，返回 topK 条语义最相似的其他笔记。
+     *
+     * @param itemId 目标笔记 ID
+     * @param topK   返回条数
+     * @return 按向量相似度 + 时间衰减排序的相关笔记列表
+     */
+    public List<SearchResultItem> findRelated(UUID itemId, int topK) {
+        KnowledgeItem item = itemRepo.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Knowledge item not found: " + itemId));
+
+        // 多取一条，用于排除自身
+        Map<String, Double> vectorScores = similaritySearch(item.getCleanContent(), topK + 1);
+        vectorScores = minMaxNormalize(vectorScores);
+        vectorScores.remove(itemId.toString());
+
+        if (vectorScores.isEmpty()) {
+            log.info("No related items found for item {}", itemId);
+            return List.of();
+        }
+
+        // 批量加载实体
+        List<UUID> ids = vectorScores.keySet().stream()
+                .map(UUID::fromString)
+                .toList();
+        List<KnowledgeItem> relatedItems = itemRepo.findAllById(ids);
+
+        // 时间衰减 + 排序
+        Instant now = Instant.now();
+        Map<UUID, List<String>> tagsMap = tagService.getItemTagNames(
+                relatedItems.stream().map(KnowledgeItem::getId).toList());
+
+        List<SearchResultItem> results = new ArrayList<>();
+        for (KnowledgeItem ri : relatedItems) {
+            String riId = ri.getId().toString();
+            double vectorScore = vectorScores.getOrDefault(riId, 0.0);
+            double timeDecay = computeTimeDecay(ri.getCreatedAt(), now);
+            double fusedScore = config.getAlpha() * vectorScore + config.getGamma() * timeDecay;
+
+            List<String> tags = tagsMap.getOrDefault(ri.getId(), List.of());
+            results.add(new SearchResultItem(
+                    KnowledgeItemResponse.from(ri, tags),
+                    fusedScore,
+                    vectorScore,
+                    0.0,      // 无 BM25
+                    timeDecay
+            ));
+        }
+
+        results.sort(Comparator.comparingDouble(SearchResultItem::fusedScore).reversed());
+
+        // 相对分差截断
+        if (!results.isEmpty()) {
+            double cutoff = results.get(0).fusedScore() * config.getRelativeCutoffFactor();
+            results = results.stream()
+                    .filter(r -> r.fusedScore() >= cutoff)
+                    .collect(Collectors.toList());
+        }
+        return results.stream().limit(topK).toList();
     }
 
     /**
@@ -194,7 +265,7 @@ public class SearchService {
                     .builder()
                     .query(query)
                     .topK(topK)
-                    .similarityThresholdAll()
+                    .similarityThreshold(config.getSimilarityThreshold())
                     .build();
             List<Document> docs = vectorStore.similaritySearch(searchRequest);
 

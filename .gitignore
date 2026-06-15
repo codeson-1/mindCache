@@ -37,3 +37,7 @@ application-local.yml
 
 ### Uploaded files ###
 uploads/
+
+### Frontend ###
+frontend/node_modules/
+frontend/.vite/

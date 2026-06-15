@@ -37,6 +37,21 @@ public class SearchConfig {
     /** 默认返回条数 */
     private int defaultTopK = 20;
 
+    /**
+     * pgvector 向量检索的最低余弦相似度阈值（0~1）。
+     * 低于此值的向量不会进入候选集，在数据库/HNSW 层即可拦截语义无关的结果。
+     * <p>默认 0.3：仅拦截余弦相似度极低（< 0.3）的明显无关结果，主要过滤交第二道相对分差截断。
+     */
+    private double similarityThreshold = 0.3;
+
+    /**
+     * 融合评分相对截断因子（0~1）。
+     * 融合后只保留 fusedScore ≥ top1FusedScore × factor 的结果。
+     * 用于拦截「向量未命中但 BM25 关键词碰巧命中」的漏网之鱼。
+     * <p>默认 0.75：得分不到第一名 75% 的视为弱相关，予以过滤。
+     */
+    private double relativeCutoffFactor = 0.75;
+
     // ---- getters / setters ----
 
     public double getAlpha() { return alpha; }
@@ -53,4 +68,10 @@ public class SearchConfig {
 
     public int getDefaultTopK() { return defaultTopK; }
     public void setDefaultTopK(int defaultTopK) { this.defaultTopK = defaultTopK; }
+
+    public double getSimilarityThreshold() { return similarityThreshold; }
+    public void setSimilarityThreshold(double similarityThreshold) { this.similarityThreshold = similarityThreshold; }
+
+    public double getRelativeCutoffFactor() { return relativeCutoffFactor; }
+    public void setRelativeCutoffFactor(double relativeCutoffFactor) { this.relativeCutoffFactor = relativeCutoffFactor; }
 }
